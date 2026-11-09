@@ -1,0 +1,14 @@
+.git
+.github
+.venv
+.python
+.tools
+.uv-cache
+__pycache__
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.pre-commit-cache
+.idea/
+dist
+.env

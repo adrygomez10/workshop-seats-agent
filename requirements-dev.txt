@@ -1,0 +1,4 @@
+# Resolved transitive versions are in uv.lock.
+ruff==0.17.3
+pytest==9.2.0
+mypy==2.4.1

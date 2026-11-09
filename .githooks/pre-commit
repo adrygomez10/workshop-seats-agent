@@ -1,0 +1,24 @@
+#!/bin/sh
+# Check the staged snapshot with the same quality gate used by CI.
+# Install once per clone with: git config core.hooksPath .githooks
+set -eu
+
+if ! command -v docker >/dev/null 2>&1; then
+    echo "Docker is required to run the pre-commit quality checks." >&2
+    exit 1
+fi
+
+snapshot=$(mktemp -d)
+trap 'rm -rf "$snapshot"' EXIT INT TERM
+
+# Copy only the staged content, so unstaged edits cannot hide a failure.
+git checkout-index --all --prefix="$snapshot/"
+
+echo "Running quality checks on the staged content with Docker..."
+if ! output=$(docker build --progress=plain --target quality "$snapshot" 2>&1)
+then
+    printf '%s\n' "$output" | grep -vE '^#[0-9]+ (sha256|DONE|CACHED|\[internal\])' >&2
+    echo "Quality checks failed. The commit was not created." >&2
+    exit 1
+fi
+echo "Quality checks passed."

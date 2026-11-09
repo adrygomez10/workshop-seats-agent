@@ -1,0 +1,22 @@
+name: Quality
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.13.6"
+      - run: uv python install 3.15.2
+      - run: uv sync --frozen
+      - run: uv run python scripts/check_quality.py
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --target quality .
+      - run: docker build -t workshop-seats-agent .
+      - run: docker run --rm workshop-seats-agent
