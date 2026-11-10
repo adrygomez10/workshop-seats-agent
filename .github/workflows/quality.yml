@@ -20,3 +20,4 @@ jobs:
       - run: docker build --target quality .
       - run: docker build -t workshop-seats-agent .
       - run: docker run --rm workshop-seats-agent
+      - run: docker run --rm workshop-seats-agent --engine langgraph --demo

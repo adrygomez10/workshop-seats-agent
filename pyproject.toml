@@ -5,10 +5,16 @@ build-backend = "hatchling.build"
 [project]
 name = "workshop-seats-agent"
 version = "0.1.0"
-description = "A Pydantic AI agent that checks workshop seats with a tool."
+description = "A workshop seats assistant built with Pydantic AI and with LangGraph."
 readme = "README.md"
 requires-python = ">=3.15,<3.16"
-dependencies = ["pydantic==2.14.3", "pydantic-ai-slim[anthropic]==2.66.0"]
+dependencies = [
+    "langchain==1.4.9",
+    "langchain-anthropic==1.7.10",
+    "langgraph==1.2.20",
+    "pydantic==2.14.3",
+    "pydantic-ai-slim[anthropic]==2.66.0",
+]
 
 [project.scripts]
 workshop-seats = "workshop_seats.bootstrap:main"
@@ -52,6 +58,7 @@ addopts = "-q"
 filterwarnings = [
     "error::ResourceWarning",
     "error::DeprecationWarning:workshop_seats.*",
+    "ignore:.asyncio.iscoroutinefunction. is deprecated:DeprecationWarning:langsmith.*",
 ]
 
 [tool.mypy]

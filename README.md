@@ -1,14 +1,24 @@
 # Workshop Seats Agent
 
-Aplicación de consola en Python para el taller del artículo
+Aplicación de consola en Python para los talleres de los artículos
+[LangChain y LangGraph: organizar un flujo de IA con pasos y decisiones](https://adriangm.dev/categoria/inteligencia-artificial/integracion-ia-software/langchain-langgraph-flujo-pasos-decisiones-python)
+y
 [Pydantic AI: un agente con herramientas y respuestas tipadas en Python](https://adriangm.dev/categoria/inteligencia-artificial/integracion-ia-software/pydantic-ai-agente-herramientas-respuestas-tipadas-python).
 
-Una persona pregunta cuántas plazas quedan en un taller. Un agente de
-Pydantic AI consulta el catálogo de la aplicación con la herramienta
-`get_available_seats` y devuelve una ficha validada con el nombre del taller
-y sus plazas. Si la pregunta no permite identificar el taller, devuelve una
-aclaración. La aplicación comprueba la ficha contra el catálogo antes de
-mostrarla.
+Una persona pregunta cuántas plazas quedan en un taller. La aplicación
+responde con el nombre del taller y sus plazas o, si la pregunta no permite
+identificarlo, con una aclaración. Hay dos formas de obtener la respuesta,
+que se eligen con `--engine`:
+
+- `pydantic-ai`, la opción por defecto: un agente de Pydantic AI consulta el
+  catálogo con la herramienta `get_available_seats` y devuelve una ficha
+  validada.
+- `langgraph`: LangChain pide al modelo que identifique el taller y un grafo
+  de LangGraph elige entre leer las plazas del catálogo o pedir una
+  aclaración.
+
+En los dos casos, la aplicación comprueba la respuesta contra el catálogo
+antes de mostrarla.
 
 ```text
 $ docker run --rm workshop-seats-agent
@@ -34,6 +44,8 @@ El catálogo es ficticio y vive en memoria:
 | Fotografía nocturna | 3 |
 | Cerámica | 0 |
 
+### Con Pydantic AI
+
 Para la pregunta «¿Cuántas plazas quedan para Fotografía nocturna?», el
 recorrido es este:
 
@@ -47,17 +59,46 @@ recorrido es este:
    `Availability`.
 5. El caso de uso compara la ficha con el catálogo y la consola la muestra.
 
+El modelo decide cuándo usar la herramienta y escribe la ficha final, así
+que la comparación del paso 5 puede detectar un número mal copiado.
+
+### Con LangChain y LangGraph
+
+La misma pregunta sigue un grafo con tres pasos, `identify`, `answer` y
+`clarify`:
+
+1. `identify` envía al modelo unas instrucciones y la pregunta mediante
+   LangChain. El modelo devuelve una `WorkshopSelection` con
+   `workshop_name="Fotografía nocturna"`, o con `None` si no puede
+   identificar el taller.
+2. Una función de Python, `choose_next_step`, elige el siguiente paso: hay
+   un taller seleccionado, así que va a `answer`.
+3. `answer` lee las plazas del catálogo, que LangGraph le entrega como
+   contexto de esa ejecución, y construye la respuesta con `3`.
+4. El caso de uso compara la respuesta con el catálogo y la consola la
+   muestra.
+
+Sin taller seleccionado, el grafo va a `clarify`, que devuelve una
+aclaración fija: «Indica el taller: Fotografía nocturna o Cerámica.». Aquí el
+modelo solo elige el taller; el recorrido y el número salen de nuestro
+código.
+
+### Organización
+
 El código se organiza por responsabilidades:
 
 | Carpeta o módulo | Responsabilidad |
 | --- | --- |
 | `domain/` | `WorkshopCatalog` guarda las plazas y rechaza datos inválidos. |
 | `application/` | `CheckAvailability` pide la respuesta mediante el puerto `AvailabilityAssistant` y rechaza fichas que contradicen el catálogo. |
+| `adapters/workshop_name.py` | Nombres de taller que ambos adaptadores aceptan del modelo. |
 | `adapters/pydantic_ai/` | Agente, herramienta `get_available_seats`, salida `Availability` y modelo de demostración. |
-| `bootstrap.py` | Lee la línea de comandos, elige el modelo y conecta las piezas. |
+| `adapters/langgraph/` | Selección `WorkshopSelection`, estado, pasos del grafo, selector de Anthropic y selector de demostración. |
+| `bootstrap.py` | Lee la línea de comandos, elige la biblioteca y el modelo y conecta las piezas. |
 
-El dominio y la aplicación no importan Pydantic AI. Las pruebas de
-arquitectura lo comprueban.
+Los dos adaptadores implementan el mismo puerto. El dominio y la aplicación
+no importan Pydantic AI, LangChain ni LangGraph. Las pruebas de arquitectura
+lo comprueban.
 
 ## Ejecutar con Docker
 
@@ -90,6 +131,18 @@ docker run --rm workshop-seats-agent --demo "¿Cuántas plazas quedan?"
 La primera devuelve cero plazas. La segunda devuelve una aclaración, porque
 no nombra ningún taller.
 
+Para usar LangChain y LangGraph, añade `--engine langgraph`:
+
+```sh
+docker run --rm workshop-seats-agent --engine langgraph --demo
+docker run --rm workshop-seats-agent --engine langgraph --demo "¿Cuántas plazas quedan?"
+```
+
+En ese modo, la demostración sustituye solo la selección del modelo: una
+regla fija busca el nombre del taller en la pregunta y devuelve una
+`WorkshopSelection`. El grafo, su decisión y la lectura del catálogo se
+ejecutan igual que con un modelo real.
+
 ### Con un modelo de Anthropic
 
 Define la clave y un modelo de tu cuenta compatible con herramientas. Docker
@@ -102,23 +155,33 @@ docker run --rm -e ANTHROPIC_API_KEY -e ANTHROPIC_MODEL \
   workshop-seats-agent "¿Cuántas plazas quedan para Fotografía nocturna?"
 ```
 
+Con LangGraph, añade `--engine langgraph` antes de la pregunta. En ese caso,
+el modelo debe admitir salida estructurada.
+
 En PowerShell, define las variables con `$env:ANTHROPIC_API_KEY = "..."` y
 `$env:ANTHROPIC_MODEL = "..."`. Si falta alguna, la aplicación lo indica y
 termina con el código 2, sin llamar al proveedor.
 
-Cada pregunta permite como máximo tres peticiones al modelo y dos ejecuciones
-de la herramienta. Si el modelo falla, supera esos límites o devuelve una
-ficha que no coincide con el catálogo, la aplicación muestra el error y
-termina con el código 1.
+Con Pydantic AI, cada pregunta permite como máximo tres peticiones al modelo
+y dos ejecuciones de la herramienta. Con LangGraph, cada pregunta hace una
+sola petición al modelo. Si el modelo falla, supera esos límites, devuelve
+una selección inválida o una ficha que no coincide con el catálogo, la
+aplicación muestra el error y termina con el código 1.
 
 ## Ejecutar sin Docker
 
 Requisitos: Python 3.15.2 y [uv](https://docs.astral.sh/uv/) 0.13.6.
 
+LangChain depende de PyYAML y zstandard, que aún no publican paquetes
+compilados para Python 3.15. uv los compila durante la instalación, así que
+hace falta un compilador de C: `gcc` en Linux o las herramientas de línea de
+comandos de Xcode en macOS. En Windows sin compilador, usa Docker o WSL.
+
 ```sh
 uv sync --frozen
 uv run workshop-seats --demo
 uv run workshop-seats --demo "¿Quedan plazas para Cerámica?"
+uv run workshop-seats --engine langgraph --demo
 ```
 
 Para usar un modelo real, define `ANTHROPIC_API_KEY` y `ANTHROPIC_MODEL` y
@@ -172,12 +235,15 @@ El control ejecuta, en este orden:
 | `ruff check .` | Estilo, imports, nombres, docstrings, errores comunes y complejidad. |
 | `ruff format --check .` | Formato, sin reescribir archivos. |
 | `mypy` | Tipado estricto de `src` y `scripts`. |
-| `pytest` | Dominio, caso de uso, agente con modelos guionizados, consola y arquitectura. |
+| `pytest` | Dominio, caso de uso, agente y grafo con modelos guionizados, consola y arquitectura. |
 
-Las pruebas no necesitan red ni clave: sustituyen el modelo con
-`FunctionModel`. Comprueban la consulta al catálogo, la descripción que recibe
-el modelo, la aclaración, el rechazo de plazas negativas, el límite de
-llamadas y la ficha que contradice el catálogo.
+Las pruebas no necesitan red ni clave. Con Pydantic AI sustituyen el modelo
+con `FunctionModel` y comprueban la consulta al catálogo, la descripción que
+recibe el modelo, la aclaración, el rechazo de plazas negativas, el límite de
+llamadas y la ficha que contradice el catálogo. Con LangGraph sustituyen el
+selector con un `RunnableLambda` y comprueban los mensajes que recibe el
+modelo, los dos caminos del grafo, la lectura del catálogo y el rechazo de
+una selección que no es `WorkshopSelection`.
 
 La CI de GitHub, en `.github/workflows/quality.yml`, instala las mismas
 versiones con uv y ejecuta `scripts/check_quality.py`. En otro trabajo
@@ -235,7 +301,8 @@ aplicación:
 usa la biblioteca estándar; la aplicación usa el dominio y la biblioteca
 estándar. Los adaptadores no dependen de la entrada de consola. Otra prueba
 importa todos los módulos en un intérprete nuevo con la construcción de
-agentes bloqueada: importar un módulo no crea agentes ni llama al modelo.
+agentes, grafos y modelos de LangChain bloqueada: importar un módulo no crea
+agentes ni llama al modelo.
 
 Las herramientas acreditan solo las reglas que comprueban. Ruff, mypy y las
 pruebas no certifican por sí solos los principios de Clean Code: los
@@ -254,3 +321,8 @@ también se revisan manualmente.
   y talleres sin plazas.
 - La validación de tipos garantiza la forma de la ficha. Que el número
   coincida con el catálogo lo comprueba `CheckAvailability`.
+- Con LangGraph, el número sale siempre del catálogo, así que esa
+  comprobación no debería fallar. Lo que puede equivocarse es la selección
+  del taller, y eso solo se mide con casos de prueba sobre un modelo real.
+- El grafo no guarda estado entre preguntas: no hay persistencia ni memoria
+  de conversación.

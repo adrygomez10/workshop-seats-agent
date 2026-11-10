@@ -3,7 +3,7 @@
 import unittest
 from typing import get_args
 
-from workshop_seats.adapters.pydantic_ai.workshop_name import WorkshopName
+from workshop_seats.adapters.workshop_name import WorkshopName
 from workshop_seats.catalog_data import DEMO_SEATS_BY_WORKSHOP
 
 

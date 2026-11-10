@@ -1,4 +1,4 @@
-"""Workshop names that the model may send to the agent."""
+"""Workshop names that a model may select in either adapter."""
 
 from typing import Literal
 

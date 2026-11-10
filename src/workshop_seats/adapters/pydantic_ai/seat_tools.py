@@ -2,7 +2,7 @@
 
 from pydantic_ai import RunContext
 
-from workshop_seats.adapters.pydantic_ai.workshop_name import WorkshopName
+from workshop_seats.adapters.workshop_name import WorkshopName
 from workshop_seats.domain.workshop_catalog import WorkshopCatalog
 
 

@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from workshop_seats.adapters.pydantic_ai.workshop_name import WorkshopName
+from workshop_seats.adapters.workshop_name import WorkshopName
 
 
 class Availability(BaseModel):

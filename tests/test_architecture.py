@@ -11,7 +11,7 @@ SOURCE = Path(__file__).resolve().parents[1] / "src" / PACKAGE
 
 
 class ArchitectureTests(unittest.TestCase):
-    """Keep Pydantic AI and the console outside the core."""
+    """Keep the AI libraries and the console outside the core."""
 
     def test_core_layers_depend_only_on_inner_layers(self) -> None:
         """Allow the standard library and inner project layers only."""
@@ -47,7 +47,13 @@ class ArchitectureTests(unittest.TestCase):
             "import importlib, sys\n"
             "from unittest.mock import patch\n"
             "blocked = AssertionError('agent built on import')\n"
-            "with patch('pydantic_ai.Agent.__init__', side_effect=blocked):\n"
+            "with (\n"
+            "    patch('pydantic_ai.Agent.__init__', side_effect=blocked),\n"
+            "    patch('langgraph.graph.StateGraph.compile',"
+            " side_effect=blocked),\n"
+            "    patch('langchain.chat_models.init_chat_model',"
+            " side_effect=blocked),\n"
+            "):\n"
             "    for name in sys.argv[1:]:\n"
             "        importlib.import_module(name)\n"
         )

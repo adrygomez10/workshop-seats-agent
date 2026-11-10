@@ -36,6 +36,28 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(0, exit_code)
         self.assertTrue(output.startswith("Aclaración: "))
 
+    def test_langgraph_demo_prints_the_default_question_answer(self) -> None:
+        """Answer the same question with the LangGraph workflow."""
+        exit_code, output, _ = self.run_main("--engine", "langgraph", "--demo")
+
+        self.assertEqual(0, exit_code)
+        self.assertEqual(
+            "Taller: Fotografía nocturna\nPlazas disponibles: 3\n",
+            output,
+        )
+
+    def test_langgraph_demo_prints_its_fixed_clarification(self) -> None:
+        """Show the clarification written by the workflow."""
+        exit_code, output, _ = self.run_main(
+            "--engine", "langgraph", "--demo", "¿Quedan plazas?"
+        )
+
+        self.assertEqual(0, exit_code)
+        self.assertEqual(
+            "Aclaración: Indica el taller: Fotografía nocturna o Cerámica.\n",
+            output,
+        )
+
     def test_real_mode_requires_model_configuration(self) -> None:
         """Explain the missing variables instead of calling a provider."""
         with patch.dict("os.environ", {}, clear=True):
